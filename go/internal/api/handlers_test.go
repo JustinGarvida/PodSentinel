@@ -78,6 +78,12 @@ func TestListPods_ReturnsStoreData(t *testing.T) {
 	for _, p := range pods {
 		if p.Namespace == namespace && p.Name == "web-1" && p.RestartCount == 2 {
 			found = true
+			if p.CPU != 0.1 {
+				t.Errorf("CPU = %v, want 0.1", p.CPU)
+			}
+			if p.Memory != 1e8 {
+				t.Errorf("Memory = %v, want 1e8", p.Memory)
+			}
 		}
 	}
 	if !found {
