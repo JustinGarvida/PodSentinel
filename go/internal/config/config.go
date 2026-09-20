@@ -24,6 +24,9 @@ type Config struct {
 	WatchNamespaces []string
 	// PollInterval is how often the agent polls the Kubernetes APIs.
 	PollInterval time.Duration
+	// CORSOrigin is the origin allowed to make cross-origin requests to
+	// the REST API (the dashboard's dev/prod origin).
+	CORSOrigin string
 }
 
 // Purpose: reads configuration from environment variables, falling
@@ -37,6 +40,7 @@ func Load() Config {
 		PostgresDSN:     getEnv("POSTGRES_DSN", ""),
 		WatchNamespaces: parseNamespaces(getEnv("WATCH_NAMESPACES", "")),
 		PollInterval:    parseDuration(getEnv("POLL_INTERVAL", "15s"), 15*time.Second),
+		CORSOrigin:      getEnv("CORS_ORIGIN", "http://localhost:5173"),
 	}
 }
 

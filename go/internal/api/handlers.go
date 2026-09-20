@@ -66,6 +66,8 @@ func (h *handlers) listPods(w http.ResponseWriter, r *http.Request) {
 			Name:         p.Pod,
 			Status:       p.Status,
 			RestartCount: int(p.RestartCount),
+			CPU:          p.CPU,
+			Memory:       p.Memory,
 		})
 	}
 	writeJSON(w, http.StatusOK, summaries)

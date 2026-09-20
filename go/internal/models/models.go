@@ -15,6 +15,10 @@ type PodSummary struct {
 	Status string `json:"status"`
 	// RestartCount is the pod's total container restart count.
 	RestartCount int `json:"restartCount"`
+	// CPU is the pod's most recently observed CPU usage in cores.
+	CPU float64 `json:"cpu"`
+	// Memory is the pod's most recently observed memory usage in bytes.
+	Memory float64 `json:"memory"`
 }
 
 // MetricSample is a single CPU/memory reading for a pod at a point in time.

@@ -1,5 +1,6 @@
 import { MonitorCard } from './components/MonitorCard'
 import { sampleTraces } from './data/sampleTraces'
+import { Dashboard } from './pages/Dashboard'
 
 const pipeline = [
   {
@@ -58,6 +59,10 @@ const stack = [
 ]
 
 function App() {
+  if (window.location.pathname === '/dashboard') {
+    return <Dashboard />
+  }
+
   return (
     <div
       className="min-h-screen bg-scope-bg text-ink"
@@ -72,8 +77,16 @@ function App() {
           <span className="text-ink">pod</span>
           <span className="text-trace">sentinel</span>
         </div>
-        <div className="rounded-full border border-grid px-3 py-1 font-mono text-[11px] tracking-widest text-ink-dim uppercase">
-          design → build · v0.1
+        <div className="flex items-center gap-4">
+          <a
+            href="/dashboard"
+            className="font-mono text-[11px] tracking-widest text-ink-dim uppercase hover:text-ink"
+          >
+            pod list →
+          </a>
+          <div className="rounded-full border border-grid px-3 py-1 font-mono text-[11px] tracking-widest text-ink-dim uppercase">
+            design → build · v0.1
+          </div>
         </div>
       </header>
 

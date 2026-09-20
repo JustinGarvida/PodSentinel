@@ -26,6 +26,11 @@ func testDSN() string {
 
 func newTestRouter(t *testing.T) (http.Handler, *store.Store, string) {
 	t.Helper()
+	return newTestRouterWithOrigin(t, "http://localhost:5173")
+}
+
+func newTestRouterWithOrigin(t *testing.T, corsOrigin string) (http.Handler, *store.Store, string) {
+	t.Helper()
 	dsn := testDSN()
 
 	st, err := store.Open(context.Background(), dsn)
@@ -35,7 +40,7 @@ func newTestRouter(t *testing.T) (http.Handler, *store.Store, string) {
 	t.Cleanup(st.Close)
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return NewRouter(logger, st), st, dsn
+	return NewRouter(logger, st, corsOrigin), st, dsn
 }
 
 func cleanupNamespace(t *testing.T, dsn, namespace string) {
@@ -78,6 +83,12 @@ func TestListPods_ReturnsStoreData(t *testing.T) {
 	for _, p := range pods {
 		if p.Namespace == namespace && p.Name == "web-1" && p.RestartCount == 2 {
 			found = true
+			if p.CPU != 0.1 {
+				t.Errorf("CPU = %v, want 0.1", p.CPU)
+			}
+			if p.Memory != 1e8 {
+				t.Errorf("Memory = %v, want 1e8", p.Memory)
+			}
 		}
 	}
 	if !found {

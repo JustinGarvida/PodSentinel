@@ -119,7 +119,7 @@ cp .env.example .env   # first time only; defaults match infra/.env.example
 export $(grep -v '^#' .env | xargs)   # or use direnv/dotenv — .env isn't auto-loaded
 ```
 
-`POSTGRES_DSN` defaults to `postgres://postgres:postgres@localhost:5432/podsentinel?sslmode=disable`, matching `infra/.env.example`. See `.env.example` for every variable (`PORT`, `LOG_LEVEL`, `WATCH_NAMESPACES`, `POLL_INTERVAL`).
+`POSTGRES_DSN` defaults to `postgres://postgres:postgres@localhost:5432/podsentinel?sslmode=disable`, matching `infra/.env.example`. See `.env.example` for every variable (`PORT`, `LOG_LEVEL`, `WATCH_NAMESPACES`, `POLL_INTERVAL`, `CORS_ORIGIN`).
 
 ### 4. Run the agent
 
