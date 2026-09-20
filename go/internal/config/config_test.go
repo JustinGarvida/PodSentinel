@@ -11,6 +11,7 @@ func TestLoad_Defaults(t *testing.T) {
 	t.Setenv("POSTGRES_DSN", "")
 	t.Setenv("WATCH_NAMESPACES", "")
 	t.Setenv("POLL_INTERVAL", "")
+	t.Setenv("CORS_ORIGIN", "")
 
 	cfg := Load()
 
@@ -28,6 +29,19 @@ func TestLoad_Defaults(t *testing.T) {
 	}
 	if cfg.PollInterval != 15*time.Second {
 		t.Errorf("PollInterval = %v, want %v", cfg.PollInterval, 15*time.Second)
+	}
+	if cfg.CORSOrigin != "http://localhost:5173" {
+		t.Errorf("CORSOrigin = %q, want %q", cfg.CORSOrigin, "http://localhost:5173")
+	}
+}
+
+func TestLoad_CORSOriginCustom(t *testing.T) {
+	t.Setenv("CORS_ORIGIN", "https://dashboard.example.com")
+
+	cfg := Load()
+
+	if cfg.CORSOrigin != "https://dashboard.example.com" {
+		t.Errorf("CORSOrigin = %q, want %q", cfg.CORSOrigin, "https://dashboard.example.com")
 	}
 }
 
