@@ -52,7 +52,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
-		Handler: api.NewRouter(logger, st),
+		Handler: api.NewRouter(logger, st, cfg.CORSOrigin),
 	}
 
 	go func() {

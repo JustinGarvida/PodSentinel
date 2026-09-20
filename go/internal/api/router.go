@@ -19,15 +19,18 @@ import (
 // Params:
 //   - logger: structured logger used by request logging and handlers.
 //   - st: the Postgres-backed store handlers read from.
+//   - corsOrigin: the origin allowed to make cross-origin requests
+//     (the dashboard's dev/prod origin).
 //
 // Returns: an http.Handler ready to be served.
-func NewRouter(logger *slog.Logger, st *store.Store) http.Handler {
+func NewRouter(logger *slog.Logger, st *store.Store, corsOrigin string) http.Handler {
 	h := &handlers{logger: logger, store: st}
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
 	r.Use(requestLogger(logger))
+	r.Use(cors(corsOrigin))
 
 	r.Get("/health", h.health)
 
@@ -38,6 +41,25 @@ func NewRouter(logger *slog.Logger, st *store.Store) http.Handler {
 	})
 
 	return r
+}
+
+// Purpose: allows the dashboard's origin to make cross-origin requests
+// to the REST API, answering preflight OPTIONS requests directly.
+// Params:
+//   - allowedOrigin: the origin to send back in Access-Control-Allow-Origin.
+//
+// Returns: middleware that sets CORS headers on every response.
+func cors(allowedOrigin string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // Purpose: logs each request's method, path, status, and duration
