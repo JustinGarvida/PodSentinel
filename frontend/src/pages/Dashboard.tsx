@@ -1,8 +1,12 @@
+import { useState } from 'react'
+import { PollIntervalSelect } from '../components/PollIntervalSelect'
 import { usePods } from '../hooks/usePods'
 import { formatCPU, formatMemory } from '../lib/format'
+import { DEFAULT_POLL_MS } from '../lib/polling'
 
 export function Dashboard() {
-  const result = usePods()
+  const [pollMs, setPollMs] = useState<number | null>(DEFAULT_POLL_MS)
+  const result = usePods(pollMs)
 
   return (
     <div className="min-h-screen bg-scope-bg text-ink">
@@ -17,9 +21,12 @@ export function Dashboard() {
       </header>
 
       <main className="mx-auto max-w-6xl px-6 pb-20">
-        <h1 className="font-display text-xs tracking-[0.25em] text-ink-dim uppercase">
-          pods
-        </h1>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="font-display text-xs tracking-[0.25em] text-ink-dim uppercase">
+            pods
+          </h1>
+          <PollIntervalSelect value={pollMs} onChange={setPollMs} />
+        </div>
 
         {result.status === 'loading' && (
           <p className="mt-6 font-mono text-sm text-ink-dim">loading pods…</p>
