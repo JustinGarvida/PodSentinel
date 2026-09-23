@@ -59,7 +59,7 @@ RabbitMQ sits in the critical path between ingestion and detection (not just as 
 
 ### Postgres / TimescaleDB
 
-- `pod_metrics` — a TimescaleDB hypertable: timestamp, namespace, pod, cpu, memory.
+- `pod_metrics` — a TimescaleDB hypertable: timestamp, namespace, pod, pod_uid, owner_kind, owner_name, cpu, memory, status, restart_count. `pod_uid` and `owner_kind`/`owner_name` (resolved from the pod's `ownerReferences`, following a ReplicaSet up to its own Deployment where present) let a workload's pod-respin history be tracked across pod churn — a crashed pod under a Deployment is deleted and replaced by a new Pod object with a new name and UID, which plain `(namespace, pod)` can't correlate. This is separate from `restart_count`, which only counts in-place container restarts within one pod's lifetime. Owner resolution is Kubernetes-native (`ownerReferences`), not Helm-release-aware — it works the same regardless of how the workload was deployed, but doesn't group by Helm release (`app.kubernetes.io/instance`), which depends on chart convention rather than a guaranteed API relationship.
 - `anomalies` — timestamp, namespace, pod, metric, value, baseline/threshold, severity.
 
 Postgres is the source of truth for both raw metrics and anomaly history, and is what the dashboard's REST API reads from.
