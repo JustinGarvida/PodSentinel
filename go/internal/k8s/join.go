@@ -15,6 +15,20 @@ type PodSample struct {
 	Namespace string
 	// Name is the pod's name.
 	Name string
+	// UID is the pod object's Kubernetes UID — stable for this pod's
+	// whole lifetime and never reused, unlike Name (a crashed pod under
+	// a Deployment is deleted and replaced by a new Pod object with a
+	// new name and UID). Distinguishing "same pod restarted" from
+	// "pod replaced" requires this, not just Name.
+	UID string
+	// OwnerKind is the pod's controlling owner's kind (e.g.
+	// "Deployment", "StatefulSet", "DaemonSet"), resolved by following
+	// a ReplicaSet owner up to its own Deployment where possible. Empty
+	// for a bare pod with no controller.
+	OwnerKind string
+	// OwnerName is the pod's controlling owner's name, in the same
+	// terms as OwnerKind. Empty for a bare pod with no controller.
+	OwnerName string
 	// Status is the pod's phase (e.g. "Running", "Pending").
 	Status string
 	// RestartCount is the sum of restart counts across the pod's
@@ -39,9 +53,12 @@ type PodSample struct {
 //   - metrics: the metrics API's pod metrics list for the same scope.
 //   - now: the poll's wall-clock time, used as a fallback Timestamp.
 //   - logger: structured logger for the no-metrics-match debug line.
+//   - resolveOwner: resolves a pod's controlling owner (kind, name);
+//     injected so this stays a pure function in tests (see poller.go
+//     for the real, API-backed resolver).
 //
 // Returns: one PodSample per pod in pods, in the same order.
-func joinPodsAndMetrics(pods []corev1.Pod, metrics []metricsv1beta1.PodMetrics, now time.Time, logger *slog.Logger) []PodSample {
+func joinPodsAndMetrics(pods []corev1.Pod, metrics []metricsv1beta1.PodMetrics, now time.Time, logger *slog.Logger, resolveOwner func(pod corev1.Pod) (kind, name string)) []PodSample {
 	metricsByKey := make(map[string]metricsv1beta1.PodMetrics, len(metrics))
 	for _, m := range metrics {
 		metricsByKey[m.Namespace+"/"+m.Name] = m
@@ -78,9 +95,14 @@ func joinPodsAndMetrics(pods []corev1.Pod, metrics []metricsv1beta1.PodMetrics, 
 			restarts += cs.RestartCount
 		}
 
+		ownerKind, ownerName := resolveOwner(pod)
+
 		samples = append(samples, PodSample{
 			Namespace:    pod.Namespace,
 			Name:         pod.Name,
+			UID:          string(pod.UID),
+			OwnerKind:    ownerKind,
+			OwnerName:    ownerName,
 			Status:       string(pod.Status.Phase),
 			RestartCount: restarts,
 			CPU:          cpu,

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -91,5 +92,50 @@ func TestPoller_Poll_EmptyNamespacesMeansAll(t *testing.T) {
 
 	if len(samples) != 2 {
 		t.Fatalf("len(samples) = %d, want 2 (no namespace filter means watch all)", len(samples))
+	}
+}
+
+func TestPoller_Poll_ResolvesPodUIDAndOwnerThroughAReplicaSet(t *testing.T) {
+	core := k8sfake.NewSimpleClientset(
+		&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "default",
+				Name:      "web-7d9f8c6b5d-x8k2p",
+				UID:       "pod-uid-123",
+				OwnerReferences: []metav1.OwnerReference{
+					{Kind: "ReplicaSet", Name: "web-7d9f8c6b5d", Controller: boolPtr(true)},
+				},
+			},
+		},
+		&appsv1.ReplicaSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "default",
+				Name:      "web-7d9f8c6b5d",
+				OwnerReferences: []metav1.OwnerReference{
+					{Kind: "Deployment", Name: "web", Controller: boolPtr(true)},
+				},
+			},
+		},
+	)
+	metrics := newFakeMetricsClient(t)
+
+	poller := &Poller{
+		Clients:    &Clients{Core: core, Metrics: metrics},
+		Namespaces: []string{"default"},
+		Logger:     testLogger(),
+		Now:        time.Now,
+	}
+
+	samples := poller.Poll(context.Background())
+
+	if len(samples) != 1 {
+		t.Fatalf("len(samples) = %d, want 1", len(samples))
+	}
+	got := samples[0]
+	if got.UID != "pod-uid-123" {
+		t.Errorf("UID = %q, want %q", got.UID, "pod-uid-123")
+	}
+	if got.OwnerKind != "Deployment" || got.OwnerName != "web" {
+		t.Errorf("owner = %s/%s, want Deployment/web (resolved through the ReplicaSet)", got.OwnerKind, got.OwnerName)
 	}
 }

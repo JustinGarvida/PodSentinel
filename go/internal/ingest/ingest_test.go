@@ -66,3 +66,25 @@ func TestRun_SkipsFailedInsertWithoutStoppingTheRest(t *testing.T) {
 		t.Fatalf("inserted = %+v, want only good-pod to have been persisted", st.inserted)
 	}
 }
+
+func TestRun_PassesThroughUIDAndOwnerFromSample(t *testing.T) {
+	now := time.Now()
+	poller := fakePoller{samples: []k8s.PodSample{
+		{
+			Namespace: "default", Name: "web-7d9f8c6b5d-x8k2p", Status: "Running",
+			UID: "pod-uid-123", OwnerKind: "Deployment", OwnerName: "web",
+			Timestamp: now,
+		},
+	}}
+	st := &fakeStore{}
+
+	Run(context.Background(), poller, st, testLogger())
+
+	if len(st.inserted) != 1 {
+		t.Fatalf("len(inserted) = %d, want 1", len(st.inserted))
+	}
+	got := st.inserted[0]
+	if got.PodUID != "pod-uid-123" || got.OwnerKind != "Deployment" || got.OwnerName != "web" {
+		t.Errorf("row = %+v, want PodUID=pod-uid-123 OwnerKind=Deployment OwnerName=web", got)
+	}
+}
