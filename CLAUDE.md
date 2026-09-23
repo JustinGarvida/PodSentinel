@@ -32,6 +32,7 @@ docs/       # Design and architecture documentation
 - **Statistical baseline before ML.** Anomaly detection starts with z-score/EWMA-based deviation from a pod's rolling recent baseline — explainable, no training data needed. An ML model (e.g. Isolation Forest) is a documented future upgrade, not the starting point.
 - **Postgres writes don't depend on RabbitMQ.** Go writes raw metrics to Postgres directly during polling, independent of whether the RabbitMQ publish succeeds — core recording survives queue outages.
 - **RabbitMQ's `anomalies.detected` exchange has no built-in alert consumer yet.** Only Go consumes it today (to persist anomalies for the dashboard). The schema is designed so a future alerting consumer (Slack/email/webhook) could bind its own queue without changing the publisher.
+- **Pod history tracking keys on UID + owner, not just pod name.** A replaced pod gets a new name and UID, so `pod_metrics` also stores `pod_uid` and the resolved `owner_kind`/`owner_name` (from `ownerReferences`, not Helm labels) to correlate history across respins.
 
 ## Commit Conventions
 

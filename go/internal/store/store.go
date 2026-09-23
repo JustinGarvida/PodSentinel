@@ -16,6 +16,12 @@ type PodMetricRow struct {
 	Namespace string
 	// Pod is the pod's name.
 	Pod string
+	// PodUID is the pod's Kubernetes UID, empty for samples predating this column.
+	PodUID string
+	// OwnerKind is the pod's controlling owner's kind (e.g. "Deployment"), empty for a bare pod.
+	OwnerKind string
+	// OwnerName is the pod's controlling owner's name, empty for a bare pod.
+	OwnerName string
 	// CPU is the pod's CPU usage in cores at Time.
 	CPU float64
 	// Memory is the pod's memory usage in bytes at Time.
@@ -33,6 +39,12 @@ type PodSummary struct {
 	Namespace string
 	// Pod is the pod's name.
 	Pod string
+	// PodUID is the pod's Kubernetes UID at the most recent sample.
+	PodUID string
+	// OwnerKind is the pod's controlling owner's kind at the most recent sample.
+	OwnerKind string
+	// OwnerName is the pod's controlling owner's name at the most recent sample.
+	OwnerName string
 	// Status is the pod's most recently observed phase.
 	Status string
 	// RestartCount is the pod's most recently observed restart count.
@@ -105,9 +117,9 @@ func (s *Store) Close() {
 // Returns: nil on success, or an error if the insert failed.
 func (s *Store) InsertPodMetric(ctx context.Context, row PodMetricRow) error {
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO pod_metrics (time, namespace, pod, cpu, memory, status, restart_count)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`, row.Time, row.Namespace, row.Pod, row.CPU, row.Memory, row.Status, row.RestartCount)
+		INSERT INTO pod_metrics (time, namespace, pod, pod_uid, owner_kind, owner_name, cpu, memory, status, restart_count)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`, row.Time, row.Namespace, row.Pod, row.PodUID, row.OwnerKind, row.OwnerName, row.CPU, row.Memory, row.Status, row.RestartCount)
 	if err != nil {
 		return fmt.Errorf("inserting pod metric for %s/%s: %w", row.Namespace, row.Pod, err)
 	}
@@ -124,7 +136,7 @@ func (s *Store) InsertPodMetric(ctx context.Context, row PodMetricRow) error {
 func (s *Store) ListPods(ctx context.Context) ([]PodSummary, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT DISTINCT ON (namespace, pod)
-			namespace, pod, status, restart_count, cpu, memory, time
+			namespace, pod, pod_uid, owner_kind, owner_name, status, restart_count, cpu, memory, time
 		FROM pod_metrics
 		WHERE time >= now() - interval '1 hour'
 		ORDER BY namespace, pod, time DESC
@@ -137,7 +149,7 @@ func (s *Store) ListPods(ctx context.Context) ([]PodSummary, error) {
 	var summaries []PodSummary
 	for rows.Next() {
 		var summary PodSummary
-		if err := rows.Scan(&summary.Namespace, &summary.Pod, &summary.Status, &summary.RestartCount, &summary.CPU, &summary.Memory, &summary.Time); err != nil {
+		if err := rows.Scan(&summary.Namespace, &summary.Pod, &summary.PodUID, &summary.OwnerKind, &summary.OwnerName, &summary.Status, &summary.RestartCount, &summary.CPU, &summary.Memory, &summary.Time); err != nil {
 			return nil, fmt.Errorf("scanning pod summary: %w", err)
 		}
 		summaries = append(summaries, summary)
@@ -156,7 +168,7 @@ func (s *Store) ListPods(ctx context.Context) ([]PodSummary, error) {
 // an error if the query failed.
 func (s *Store) GetPodMetrics(ctx context.Context, namespace, pod string) ([]PodMetricRow, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT time, namespace, pod, cpu, memory, status, restart_count
+		SELECT time, namespace, pod, pod_uid, owner_kind, owner_name, cpu, memory, status, restart_count
 		FROM pod_metrics
 		WHERE namespace = $1 AND pod = $2 AND time >= now() - interval '1 hour'
 		ORDER BY time ASC
@@ -169,7 +181,7 @@ func (s *Store) GetPodMetrics(ctx context.Context, namespace, pod string) ([]Pod
 	var samples []PodMetricRow
 	for rows.Next() {
 		var r PodMetricRow
-		if err := rows.Scan(&r.Time, &r.Namespace, &r.Pod, &r.CPU, &r.Memory, &r.Status, &r.RestartCount); err != nil {
+		if err := rows.Scan(&r.Time, &r.Namespace, &r.Pod, &r.PodUID, &r.OwnerKind, &r.OwnerName, &r.CPU, &r.Memory, &r.Status, &r.RestartCount); err != nil {
 			return nil, fmt.Errorf("scanning pod metric row: %w", err)
 		}
 		samples = append(samples, r)

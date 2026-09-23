@@ -59,7 +59,7 @@ RabbitMQ sits in the critical path between ingestion and detection (not just as 
 
 ### Postgres / TimescaleDB
 
-- `pod_metrics` — a TimescaleDB hypertable: timestamp, namespace, pod, cpu, memory.
+- `pod_metrics` — a TimescaleDB hypertable: timestamp, namespace, pod, pod_uid, owner_kind, owner_name, cpu, memory, status, restart_count. `pod_uid` and `owner_kind`/`owner_name` (resolved from `ownerReferences`, following a ReplicaSet up to its Deployment) let a workload's history be correlated across pod respins.
 - `anomalies` — timestamp, namespace, pod, metric, value, baseline/threshold, severity.
 
 Postgres is the source of truth for both raw metrics and anomaly history, and is what the dashboard's REST API reads from.

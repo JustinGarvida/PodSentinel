@@ -17,6 +17,11 @@ func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
+// noOwner is a resolveOwner stub for tests that ignore owners.
+func noOwner(pod corev1.Pod) (kind, name string) {
+	return "", ""
+}
+
 func TestJoinPodsAndMetrics_JoinsByNamespaceAndName(t *testing.T) {
 	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
 	scrapeTime := time.Date(2026, 8, 28, 11, 59, 30, 0, time.UTC)
@@ -51,7 +56,7 @@ func TestJoinPodsAndMetrics_JoinsByNamespaceAndName(t *testing.T) {
 		},
 	}
 
-	samples := joinPodsAndMetrics(pods, metrics, now, testLogger())
+	samples := joinPodsAndMetrics(pods, metrics, now, testLogger(), noOwner)
 
 	if len(samples) != 1 {
 		t.Fatalf("len(samples) = %d, want 1", len(samples))
@@ -98,7 +103,7 @@ func TestJoinPodsAndMetrics_ZeroesUsageForPodWithNoMetrics(t *testing.T) {
 		{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "web-1"}, Timestamp: metav1.NewTime(scrapeTime)},
 	}
 
-	samples := joinPodsAndMetrics(pods, metrics, now, testLogger())
+	samples := joinPodsAndMetrics(pods, metrics, now, testLogger(), noOwner)
 
 	if len(samples) != 2 {
 		t.Fatalf("len(samples) = %d, want 2 (the pod missing metrics should still be included, not dropped)", len(samples))
@@ -127,5 +132,34 @@ func TestJoinPodsAndMetrics_ZeroesUsageForPodWithNoMetrics(t *testing.T) {
 	}
 	if !noMetrics.Timestamp.Equal(now) {
 		t.Errorf("Timestamp = %v, want the passed-in now %v (no real metrics scrape time to use)", noMetrics.Timestamp, now)
+	}
+}
+
+func TestJoinPodsAndMetrics_SetsUIDAndUsesResolverForOwner(t *testing.T) {
+	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
+
+	pods := []corev1.Pod{
+		{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "web-1", UID: "pod-uid-123"}},
+	}
+
+	resolveOwner := func(pod corev1.Pod) (kind, name string) {
+		if pod.Namespace == "default" && pod.Name == "web-1" {
+			return "Deployment", "web"
+		}
+		t.Fatalf("resolveOwner called with unexpected pod %s/%s", pod.Namespace, pod.Name)
+		return "", ""
+	}
+
+	samples := joinPodsAndMetrics(pods, nil, now, testLogger(), resolveOwner)
+
+	if len(samples) != 1 {
+		t.Fatalf("len(samples) = %d, want 1", len(samples))
+	}
+	got := samples[0]
+	if got.UID != "pod-uid-123" {
+		t.Errorf("UID = %q, want %q", got.UID, "pod-uid-123")
+	}
+	if got.OwnerKind != "Deployment" || got.OwnerName != "web" {
+		t.Errorf("owner = %s/%s, want Deployment/web (from the injected resolver)", got.OwnerKind, got.OwnerName)
 	}
 }

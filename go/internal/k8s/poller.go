@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -56,6 +57,12 @@ func (p *Poller) Poll(ctx context.Context) []PodSample {
 	now := p.Now()
 	var samples []PodSample
 
+	// Shared for the whole cycle so pods in one ReplicaSet cost a single Get.
+	owners := newOwnerCache(p.Clients.Core, p.Logger)
+	resolveOwner := func(pod corev1.Pod) (kind, name string) {
+		return owners.resolve(ctx, pod.Namespace, pod.OwnerReferences)
+	}
+
 	for _, ns := range namespaces {
 		pods, err := p.Clients.Core.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{})
 		if err != nil {
@@ -69,7 +76,7 @@ func (p *Poller) Poll(ctx context.Context) []PodSample {
 			continue
 		}
 
-		samples = append(samples, joinPodsAndMetrics(pods.Items, metrics.Items, now, p.Logger)...)
+		samples = append(samples, joinPodsAndMetrics(pods.Items, metrics.Items, now, p.Logger, resolveOwner)...)
 	}
 
 	return samples

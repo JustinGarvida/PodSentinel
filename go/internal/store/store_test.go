@@ -47,6 +47,7 @@ func TestStore_InsertPodMetricAndListPods(t *testing.T) {
 	}
 	if err := s.InsertPodMetric(ctx, PodMetricRow{
 		Time: newer, Namespace: namespace, Pod: "web-1",
+		PodUID: "pod-uid-123", OwnerKind: "Deployment", OwnerName: "web",
 		CPU: 0.2, Memory: 2e8, Status: "Running", RestartCount: 1,
 	}); err != nil {
 		t.Fatalf("InsertPodMetric() error = %v", err)
@@ -68,6 +69,9 @@ func TestStore_InsertPodMetricAndListPods(t *testing.T) {
 	}
 	if found.RestartCount != 1 || found.CPU != 0.2 {
 		t.Errorf("ListPods() returned stale row: %+v, want the latest sample (restart_count=1, cpu=0.2)", found)
+	}
+	if found.PodUID != "pod-uid-123" || found.OwnerKind != "Deployment" || found.OwnerName != "web" {
+		t.Errorf("ListPods() owner fields = %+v, want PodUID=pod-uid-123 OwnerKind=Deployment OwnerName=web", found)
 	}
 }
 
@@ -110,8 +114,8 @@ func TestStore_GetPodMetricsReturnsTimeSeriesOldestFirst(t *testing.T) {
 	t2 := time.Now().Add(-1 * time.Minute).UTC().Truncate(time.Millisecond)
 
 	for _, row := range []PodMetricRow{
-		{Time: t2, Namespace: namespace, Pod: "api-1", CPU: 0.2, Memory: 2e8, Status: "Running"},
-		{Time: t1, Namespace: namespace, Pod: "api-1", CPU: 0.1, Memory: 1e8, Status: "Running"},
+		{Time: t2, Namespace: namespace, Pod: "api-1", PodUID: "pod-uid-456", OwnerKind: "StatefulSet", OwnerName: "api", CPU: 0.2, Memory: 2e8, Status: "Running"},
+		{Time: t1, Namespace: namespace, Pod: "api-1", PodUID: "pod-uid-456", OwnerKind: "StatefulSet", OwnerName: "api", CPU: 0.1, Memory: 1e8, Status: "Running"},
 	} {
 		if err := s.InsertPodMetric(ctx, row); err != nil {
 			t.Fatalf("InsertPodMetric() error = %v", err)
@@ -127,6 +131,9 @@ func TestStore_GetPodMetricsReturnsTimeSeriesOldestFirst(t *testing.T) {
 	}
 	if !samples[0].Time.Equal(t1) || !samples[1].Time.Equal(t2) {
 		t.Errorf("samples not ordered oldest-first: %+v", samples)
+	}
+	if samples[0].PodUID != "pod-uid-456" || samples[0].OwnerKind != "StatefulSet" || samples[0].OwnerName != "api" {
+		t.Errorf("samples[0] owner fields = %+v, want PodUID=pod-uid-456 OwnerKind=StatefulSet OwnerName=api", samples[0])
 	}
 }
 
