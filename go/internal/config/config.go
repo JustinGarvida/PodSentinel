@@ -19,6 +19,10 @@ type Config struct {
 	// left empty if unset, which surfaces as a connection error at
 	// startup rather than being validated here.
 	PostgresDSN string
+	// RabbitMQURL is the AMQP URL the agent publishes raw metrics to.
+	// Empty disables publishing; the agent still polls and writes to
+	// Postgres.
+	RabbitMQURL string
 	// WatchNamespaces restricts polling to these namespaces. Empty
 	// means watch all namespaces.
 	WatchNamespaces []string
@@ -38,6 +42,7 @@ func Load() Config {
 		Port:            getEnv("PORT", "8080"),
 		LogLevel:        getEnv("LOG_LEVEL", "info"),
 		PostgresDSN:     getEnv("POSTGRES_DSN", ""),
+		RabbitMQURL:     getEnv("RABBITMQ_URL", ""),
 		WatchNamespaces: parseNamespaces(getEnv("WATCH_NAMESPACES", "")),
 		PollInterval:    parseDuration(getEnv("POLL_INTERVAL", "15s"), 15*time.Second),
 		CORSOrigin:      getEnv("CORS_ORIGIN", "http://localhost:5173"),
