@@ -64,10 +64,14 @@ func (h *handlers) listPods(w http.ResponseWriter, r *http.Request) {
 		summaries = append(summaries, models.PodSummary{
 			Namespace:    p.Namespace,
 			Name:         p.Pod,
+			UID:          p.PodUID,
+			OwnerKind:    p.OwnerKind,
+			OwnerName:    p.OwnerName,
 			Status:       p.Status,
 			RestartCount: int(p.RestartCount),
 			CPU:          p.CPU,
 			Memory:       p.Memory,
+			LastSeen:     p.Time,
 		})
 	}
 	writeJSON(w, http.StatusOK, summaries)
