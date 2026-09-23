@@ -11,6 +11,12 @@ type PodSummary struct {
 	Namespace string `json:"namespace"`
 	// Name is the pod's name.
 	Name string `json:"name"`
+	// UID is the pod's Kubernetes UID, empty for samples predating owner tracking.
+	UID string `json:"uid"`
+	// OwnerKind is the pod's controlling owner's kind (e.g. "Deployment"), empty for a bare pod.
+	OwnerKind string `json:"ownerKind"`
+	// OwnerName is the pod's controlling owner's name, empty for a bare pod.
+	OwnerName string `json:"ownerName"`
 	// Status is the pod's phase (e.g. "Running", "Pending").
 	Status string `json:"status"`
 	// RestartCount is the pod's total container restart count.
@@ -19,6 +25,8 @@ type PodSummary struct {
 	CPU float64 `json:"cpu"`
 	// Memory is the pod's most recently observed memory usage in bytes.
 	Memory float64 `json:"memory"`
+	// LastSeen is when the pod's most recent sample was taken.
+	LastSeen time.Time `json:"lastSeen"`
 }
 
 // MetricSample is a single CPU/memory reading for a pod at a point in time.

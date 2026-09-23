@@ -59,8 +59,10 @@ func TestListPods_ReturnsStoreData(t *testing.T) {
 	t.Cleanup(func() { cleanupNamespace(t, dsn, namespace) })
 
 	ctx := context.Background()
+	sampledAt := time.Now().UTC().Truncate(time.Millisecond)
 	if err := st.InsertPodMetric(ctx, store.PodMetricRow{
-		Time: time.Now().UTC().Truncate(time.Millisecond), Namespace: namespace, Pod: "web-1",
+		Time: sampledAt, Namespace: namespace, Pod: "web-1",
+		PodUID: "pod-uid-123", OwnerKind: "Deployment", OwnerName: "web",
 		CPU: 0.1, Memory: 1e8, Status: "Running", RestartCount: 2,
 	}); err != nil {
 		t.Fatalf("seeding pod metric: %v", err)
@@ -88,6 +90,12 @@ func TestListPods_ReturnsStoreData(t *testing.T) {
 			}
 			if p.Memory != 1e8 {
 				t.Errorf("Memory = %v, want 1e8", p.Memory)
+			}
+			if p.UID != "pod-uid-123" || p.OwnerKind != "Deployment" || p.OwnerName != "web" {
+				t.Errorf("identity = uid %q owner %s/%s, want uid pod-uid-123 owner Deployment/web", p.UID, p.OwnerKind, p.OwnerName)
+			}
+			if !p.LastSeen.Equal(sampledAt) {
+				t.Errorf("LastSeen = %v, want %v", p.LastSeen, sampledAt)
 			}
 		}
 	}
