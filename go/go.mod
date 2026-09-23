@@ -6,6 +6,7 @@ require (
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/jackc/pgx/v5 v5.10.0
+	github.com/rabbitmq/amqp091-go v1.15.0
 	k8s.io/api v0.37.0
 	k8s.io/apimachinery v0.37.0
 	k8s.io/client-go v0.37.0

@@ -1,8 +1,8 @@
 # Go Agent
 
-The Go agent is PodSentinel's core ingestion path: it polls the Kubernetes Metrics API, writes raw pod metrics to Postgres/TimescaleDB, and serves a REST API for the dashboard to read from. It's a single binary — one process handles polling, persistence, and HTTP, deliberately kept as one service rather than several (see [`../CLAUDE.md`](../CLAUDE.md#tech-stack--why)).
+The Go agent is PodSentinel's core ingestion path: it polls the Kubernetes Metrics API, writes raw pod metrics to Postgres/TimescaleDB, publishes each pod's sample to RabbitMQ for the anomaly detector, and serves a REST API for the dashboard to read from. It's a single binary — one process handles polling, persistence, publishing, and HTTP, deliberately kept as one service rather than several (see [`../CLAUDE.md`](../CLAUDE.md#tech-stack--why)).
 
-RabbitMQ pub/sub and the Python anomaly detector are not wired up yet. The `anomalies` table and its API endpoint exist and return an empty list until that lands — see [`../docs/architecture.md`](../docs/architecture.md) for the full system design and build order.
+Publishing to RabbitMQ (`metrics.raw`) is wired up; consuming anomaly events (`anomalies.detected`) and the Python anomaly detector are not built yet. The `anomalies` table and its API endpoint exist and return an empty list until that lands — see [`../docs/architecture.md`](../docs/architecture.md) for the full system design and build order.
 
 ## Architecture
 
@@ -47,6 +47,28 @@ One poll cycle (`ingest.Run`, called once at startup and then on every `POLL_INT
 1. **`k8s.Poller.Poll`** lists pods (core API) and pod metrics (`metrics.k8s.io`) per watched namespace. A failed namespace is logged and skipped — it doesn't block the rest of the cycle.
 2. **`k8s.joinPodsAndMetrics`** (`internal/k8s/join.go`) joins the two lists by `namespace/name` into a `PodSample` (identity, status, restart count, CPU, memory, timestamp). A pod with no matching metrics entry yet gets a zeroed sample rather than being dropped. The timestamp prefers metrics-server's own scrape time over wall-clock "now", since metrics-server scrapes on its own ~60s cadence independent of the poll interval.
 3. **`ingest.Run`** converts each sample to a `store.PodMetricRow` and calls `store.InsertPodMetric`. A failed insert is logged and skipped, not fatal — one bad row doesn't stop the rest of the batch.
+4. **`mq.Publisher.Publish`** (same loop, independent of step 3) sends the sample as one JSON message to the `metrics.raw` topic exchange with routing key `<namespace>.<pod>`. A failed publish is logged and skipped; the insert happens either way, so a RabbitMQ outage never loses metrics.
+
+### RabbitMQ publishing
+
+`internal/mq` declares this topology on connect (idempotent — the Python detector declares the same, so either can start first):
+
+| Name | Type | Purpose |
+|---|---|---|
+| `metrics.raw` | topic exchange | Raw per-pod samples, routing key `<namespace>.<pod>` |
+| `metrics.raw.detector` | durable queue, bound with `#` | What the detector consumes; dead-letters to `metrics.raw.dlx` |
+| `metrics.raw.dlx` | fanout exchange | Receives messages the detector nacks without requeue |
+| `metrics.raw.dlq` | durable queue | Holds dead-lettered messages for inspection |
+
+Message body (`mq.MetricMessage`, `content_type: application/json`, persistent):
+
+```json
+{"schema_version": 1, "timestamp": "2026-09-23T12:00:00Z", "namespace": "default",
+ "pod": "web-7d9f8c6b5d-x8k2p", "pod_uid": "…", "owner_kind": "Deployment", "owner_name": "web",
+ "cpu": 0.25, "memory": 150000000, "status": "Running", "restart_count": 2}
+```
+
+The publisher connects lazily on the first publish, so the agent starts fine with RabbitMQ down. After a failed connect it waits before trying again, doubling the wait each time (1s → 30s max). While it waits, publishes fail fast with `mq.ErrUnavailable` instead of stalling the poll cycle. If a publish fails on an open connection (e.g. the broker restarted), the publisher drops that connection and retries once on a new one. Leave `RABBITMQ_URL` empty to turn publishing off. To test publishing, see [`docs/testing-rabbitmq-publishing.md`](docs/testing-rabbitmq-publishing.md).
 
 Independently, **`api.NewRouter`** wires a [chi](https://github.com/go-chi/chi) router with request-ID, panic-recovery, and structured-request-logging middleware, backed by the same `*store.Store`. Postgres writes from the poll loop and API reads happen concurrently against the same connection pool.
 
@@ -57,7 +79,8 @@ Independently, **`api.NewRouter`** wires a [chi](https://github.com/go-chi/chi) 
 | `cmd/agent` | Wires everything together; owns the poll loop, HTTP server lifecycle, and shutdown |
 | `internal/config` | Loads settings from environment variables (`internal/config/config.go`) |
 | `internal/k8s` | Builds Kubernetes clientsets (in-cluster or kubeconfig fallback) and polls/joins pod + metrics data |
-| `internal/ingest` | Wires one poller to one store for a single poll-and-persist cycle |
+| `internal/ingest` | Wires one poller to one store and one publisher for a single poll-persist-publish cycle |
+| `internal/mq` | RabbitMQ `metrics.raw` topology, message schema, and the reconnecting publisher |
 | `internal/store` | Postgres/TimescaleDB access: connection pool, embedded SQL migrations, queries |
 | `internal/api` | chi router and HTTP handlers for the REST API |
 | `internal/models` | JSON response shapes returned by the API |
@@ -146,7 +169,7 @@ go test ./...
 # or: make test
 ```
 
-This runs all unit tests, including `internal/store`'s tests against a real Postgres instance. Those tests call `t.Skip` (not fail) if `infra/docker-compose.yml`'s `timescaledb` service isn't reachable at the default DSN — start it first (step 1 above) to have them actually run. Point at a different instance with `TEST_POSTGRES_DSN`.
+This runs all unit tests, including `internal/store`'s tests against a real Postgres instance. Those tests call `t.Skip` (not fail) if `infra/docker-compose.yml`'s `timescaledb` service isn't reachable at the default DSN — start it first (step 1 above) to have them actually run. Point at a different instance with `TEST_POSTGRES_DSN`. Likewise, `internal/mq`'s broker tests skip unless `rabbitmq` is reachable at `amqp://guest:guest@localhost:5672/`; override with `TEST_RABBITMQ_URL` if `infra/.env` uses other credentials.
 
 ### Integration test
 

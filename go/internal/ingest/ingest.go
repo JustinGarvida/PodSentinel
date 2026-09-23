@@ -1,5 +1,6 @@
-// Package ingest wires the Kubernetes poller to the Postgres store,
-// running one poll-and-persist cycle at a time.
+// Package ingest wires the Kubernetes poller to the Postgres store and
+// the RabbitMQ publisher, running one poll-persist-publish cycle at a
+// time.
 package ingest
 
 import (
@@ -22,16 +23,26 @@ type Store interface {
 	InsertPodMetric(ctx context.Context, row store.PodMetricRow) error
 }
 
-// Purpose: polls once and persists every sample; a failed insert is
-// logged and skipped, not fatal — matches polling's fault isolation.
+// Publisher is the subset of *mq.Publisher that ingest depends on.
+type Publisher interface {
+	// Publish sends a single pod sample to metrics.raw.
+	Publish(ctx context.Context, sample k8s.PodSample) error
+}
+
+// Purpose: polls once, then persists and publishes every sample. The
+// insert and publish are independent — either failing is logged and
+// skipped without affecting the other, so Postgres recording survives
+// a RabbitMQ outage.
 // Params:
-//   - ctx: propagated to the poll call and every insert.
+//   - ctx: propagated to the poll call and every insert/publish.
 //   - poller: source of pod samples for this cycle.
 //   - st: destination store for persisted samples.
-//   - logger: structured logger for per-pod insert failures.
+//   - pub: destination for per-pod metrics.raw messages; nil disables
+//     publishing.
+//   - logger: structured logger for per-pod insert/publish failures.
 //
 // Returns: nothing; per-pod failures are logged, not returned.
-func Run(ctx context.Context, poller Poller, st Store, logger *slog.Logger) {
+func Run(ctx context.Context, poller Poller, st Store, pub Publisher, logger *slog.Logger) {
 	samples := poller.Poll(ctx)
 
 	for _, sample := range samples {
@@ -50,7 +61,12 @@ func Run(ctx context.Context, poller Poller, st Store, logger *slog.Logger) {
 
 		if err := st.InsertPodMetric(ctx, row); err != nil {
 			logger.Error("persisting pod metric failed, skipping", "namespace", sample.Namespace, "pod", sample.Name, "error", err)
-			continue
+		}
+
+		if pub != nil {
+			if err := pub.Publish(ctx, sample); err != nil {
+				logger.Warn("publishing pod metric failed, skipping", "namespace", sample.Namespace, "pod", sample.Name, "error", err)
+			}
 		}
 	}
 }

@@ -1,6 +1,7 @@
 // Command agent runs the PodSentinel Go agent: it polls the
-// Kubernetes Metrics API, writes to Postgres, and serves the REST API
-// the dashboard reads from. RabbitMQ pub/sub is follow-up work.
+// Kubernetes Metrics API, writes to Postgres, publishes per-pod
+// samples to RabbitMQ, and serves the REST API the dashboard reads
+// from.
 package main
 
 import (
@@ -18,6 +19,7 @@ import (
 	"podsentinel/internal/ingest"
 	"podsentinel/internal/k8s"
 	"podsentinel/internal/logging"
+	"podsentinel/internal/mq"
 	"podsentinel/internal/store"
 )
 
@@ -46,9 +48,19 @@ func main() {
 	}
 	defer st.Close()
 
+	// Left nil (not a typed-nil *mq.Publisher) when disabled so ingest's nil check works.
+	var pub ingest.Publisher
+	if cfg.RabbitMQURL == "" {
+		logger.Warn("RABBITMQ_URL not set, publishing to rabbitmq disabled")
+	} else {
+		p := mq.NewPublisher(cfg.RabbitMQURL, logger)
+		defer p.Close()
+		pub = p
+	}
+
 	poller := k8s.NewPoller(clients, cfg.WatchNamespaces, logger)
 
-	go runPollLoop(ctx, poller, st, logger, cfg.PollInterval)
+	go runPollLoop(ctx, poller, st, pub, logger, cfg.PollInterval)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
@@ -77,18 +89,20 @@ func main() {
 	logger.Info("shutdown complete")
 }
 
-// Purpose: runs one poll-and-persist cycle immediately, then again on
+// Purpose: runs one poll-persist-publish cycle immediately, then again on
 // every tick of interval, until ctx is cancelled.
 // Params:
 //   - ctx: cancelled to stop the loop (e.g. on shutdown signal).
 //   - poller: source of joined Kubernetes pod/metric samples.
 //   - st: destination store for persisted samples.
+//   - pub: destination for per-pod metrics.raw messages; nil disables
+//     publishing.
 //   - logger: structured logger for cycle-level errors.
 //   - interval: time between poll cycles.
 //
 // Returns: nothing; blocks until ctx is done.
-func runPollLoop(ctx context.Context, poller *k8s.Poller, st *store.Store, logger *slog.Logger, interval time.Duration) {
-	ingest.Run(ctx, poller, st, logger)
+func runPollLoop(ctx context.Context, poller *k8s.Poller, st *store.Store, pub ingest.Publisher, logger *slog.Logger, interval time.Duration) {
+	ingest.Run(ctx, poller, st, pub, logger)
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -98,7 +112,7 @@ func runPollLoop(ctx context.Context, poller *k8s.Poller, st *store.Store, logge
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			ingest.Run(ctx, poller, st, logger)
+			ingest.Run(ctx, poller, st, pub, logger)
 		}
 	}
 }

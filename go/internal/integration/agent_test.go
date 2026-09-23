@@ -84,7 +84,7 @@ func TestAgent_PollsRealClusterAndPersistsToRealPostgres(t *testing.T) {
 	deadline := time.Now().Add(90 * time.Second)
 	var seen bool
 	for time.Now().Before(deadline) {
-		ingest.Run(ctx, poller, st, testLogger())
+		ingest.Run(ctx, poller, st, nil, testLogger())
 
 		pods, err := st.ListPods(ctx)
 		if err != nil {
