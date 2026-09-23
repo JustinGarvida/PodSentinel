@@ -57,4 +57,4 @@ If the Go agent later runs inside the local KIND cluster instead of on the host,
 
 ## Next steps
 
-Schema (`pod_metrics`, `anomalies`) and RabbitMQ exchange/queue topology (`metrics.raw`, `anomalies.detected`) aren't defined yet — they'll be added once the Go agent and Python detector have code that needs them.
+Schema (`pod_metrics`, `anomalies`) is defined by the Go agent's migrations. The `metrics.raw` RabbitMQ topology is declared by the Go agent on connect — see [`go/README.md`](../../go/README.md#rabbitmq-publishing). `anomalies.detected` isn't defined yet; it'll be added alongside the Python detector's anomaly publishing.
