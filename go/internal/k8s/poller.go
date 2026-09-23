@@ -57,9 +57,7 @@ func (p *Poller) Poll(ctx context.Context) []PodSample {
 	now := p.Now()
 	var samples []PodSample
 
-	// Shared for the whole cycle: pods across every watched namespace
-	// that belong to the same ReplicaSet resolve its owning Deployment
-	// with a single Get, not one per pod.
+	// Shared for the whole cycle so pods in one ReplicaSet cost a single Get.
 	owners := newOwnerCache(p.Clients.Core, p.Logger)
 	resolveOwner := func(pod corev1.Pod) (kind, name string) {
 		return owners.resolve(ctx, pod.Namespace, pod.OwnerReferences)

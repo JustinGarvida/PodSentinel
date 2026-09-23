@@ -15,19 +15,11 @@ type PodSample struct {
 	Namespace string
 	// Name is the pod's name.
 	Name string
-	// UID is the pod object's Kubernetes UID — stable for this pod's
-	// whole lifetime and never reused, unlike Name (a crashed pod under
-	// a Deployment is deleted and replaced by a new Pod object with a
-	// new name and UID). Distinguishing "same pod restarted" from
-	// "pod replaced" requires this, not just Name.
+	// UID is the pod's Kubernetes UID, which stays fixed for its lifetime unlike Name.
 	UID string
-	// OwnerKind is the pod's controlling owner's kind (e.g.
-	// "Deployment", "StatefulSet", "DaemonSet"), resolved by following
-	// a ReplicaSet owner up to its own Deployment where possible. Empty
-	// for a bare pod with no controller.
+	// OwnerKind is the pod's controlling owner's kind (e.g. "Deployment"), empty for a bare pod.
 	OwnerKind string
-	// OwnerName is the pod's controlling owner's name, in the same
-	// terms as OwnerKind. Empty for a bare pod with no controller.
+	// OwnerName is the pod's controlling owner's name, empty for a bare pod.
 	OwnerName string
 	// Status is the pod's phase (e.g. "Running", "Pending").
 	Status string
@@ -53,9 +45,7 @@ type PodSample struct {
 //   - metrics: the metrics API's pod metrics list for the same scope.
 //   - now: the poll's wall-clock time, used as a fallback Timestamp.
 //   - logger: structured logger for the no-metrics-match debug line.
-//   - resolveOwner: resolves a pod's controlling owner (kind, name);
-//     injected so this stays a pure function in tests (see poller.go
-//     for the real, API-backed resolver).
+//   - resolveOwner: resolves a pod's controlling owner (kind, name).
 //
 // Returns: one PodSample per pod in pods, in the same order.
 func joinPodsAndMetrics(pods []corev1.Pod, metrics []metricsv1beta1.PodMetrics, now time.Time, logger *slog.Logger, resolveOwner func(pod corev1.Pod) (kind, name string)) []PodSample {

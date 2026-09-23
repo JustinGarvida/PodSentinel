@@ -17,8 +17,7 @@ func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-// noOwner is a resolveOwner stub for tests that don't care about
-// owner resolution.
+// noOwner is a resolveOwner stub for tests that ignore owners.
 func noOwner(pod corev1.Pod) (kind, name string) {
 	return "", ""
 }

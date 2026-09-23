@@ -16,18 +16,11 @@ type PodMetricRow struct {
 	Namespace string
 	// Pod is the pod's name.
 	Pod string
-	// PodUID is the pod object's Kubernetes UID — stable for this
-	// pod's whole lifetime and never reused, unlike Pod (a crashed pod
-	// under a Deployment is deleted and replaced by a new Pod object
-	// with a new name and UID). Empty for samples predating this
-	// column (existing rows aren't backfilled).
+	// PodUID is the pod's Kubernetes UID, empty for samples predating this column.
 	PodUID string
-	// OwnerKind is the pod's controlling owner's kind at Time (e.g.
-	// "Deployment", "StatefulSet", "DaemonSet"), or empty for a bare
-	// pod with no controller, or a sample predating this column.
+	// OwnerKind is the pod's controlling owner's kind (e.g. "Deployment"), empty for a bare pod.
 	OwnerKind string
-	// OwnerName is the pod's controlling owner's name at Time, in the
-	// same terms as OwnerKind.
+	// OwnerName is the pod's controlling owner's name, empty for a bare pod.
 	OwnerName string
 	// CPU is the pod's CPU usage in cores at Time.
 	CPU float64
@@ -46,14 +39,11 @@ type PodSummary struct {
 	Namespace string
 	// Pod is the pod's name.
 	Pod string
-	// PodUID is the pod object's Kubernetes UID at the most recent
-	// sample. See PodMetricRow.PodUID.
+	// PodUID is the pod's Kubernetes UID at the most recent sample.
 	PodUID string
-	// OwnerKind is the pod's controlling owner's kind at the most
-	// recent sample. See PodMetricRow.OwnerKind.
+	// OwnerKind is the pod's controlling owner's kind at the most recent sample.
 	OwnerKind string
-	// OwnerName is the pod's controlling owner's name at the most
-	// recent sample. See PodMetricRow.OwnerName.
+	// OwnerName is the pod's controlling owner's name at the most recent sample.
 	OwnerName string
 	// Status is the pod's most recently observed phase.
 	Status string

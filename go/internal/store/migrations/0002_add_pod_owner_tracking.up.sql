@@ -1,9 +1,4 @@
--- Tracks a pod's stable UID and controlling owner (e.g. Deployment)
--- alongside each sample, so a crashed pod that gets deleted and
--- replaced by a new Pod object (new name, new UID) can still be
--- correlated back to the same workload over time. Distinct from
--- restart_count, which only counts in-place container restarts within
--- one pod object's lifetime.
+-- Tracks each pod's UID and controlling owner so a replaced pod can be correlated back to its workload.
 ALTER TABLE pod_metrics
     ADD COLUMN IF NOT EXISTS pod_uid    TEXT NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS owner_kind TEXT NOT NULL DEFAULT '',

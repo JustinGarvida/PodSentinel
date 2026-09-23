@@ -8,19 +8,13 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-// ownerCache resolves each pod's controlling owner for one poll
-// cycle. A Deployment-managed pod's direct owner is its ReplicaSet,
-// not the Deployment, so resolving "Deployment" needs one extra API
-// hop; this cache memoizes that hop per ReplicaSet so pods sharing one
-// ReplicaSet cost a single Get, not one per pod.
+// ownerCache resolves pods' controlling owners for one poll cycle, memoizing each ReplicaSet-to-Deployment lookup.
 type ownerCache struct {
 	// core is used to fetch a ReplicaSet's own owner.
 	core kubernetes.Interface
-	// logger reports (at Debug) a failed or absent ReplicaSet lookup.
+	// logger reports failed ReplicaSet lookups at Debug.
 	logger *slog.Logger
-	// replicaSetOwners caches "namespace/replicaset" -> the
-	// ReplicaSet's own owner name, or "" if it has none (or the
-	// lookup failed) so a repeat isn't retried within the same cycle.
+	// replicaSetOwners maps "namespace/replicaset" to its owner's name, or "" if none.
 	replicaSetOwners map[string]string
 }
 
@@ -38,17 +32,13 @@ func newOwnerCache(core kubernetes.Interface, logger *slog.Logger) *ownerCache {
 	}
 }
 
-// Purpose: resolves a pod's controlling owner, following a
-// ReplicaSet owner up to its own owning Deployment when present.
+// Purpose: resolves a pod's controlling owner, following a ReplicaSet up to its Deployment.
 // Params:
 //   - ctx: used for the ReplicaSet lookup, if one is needed.
-//   - namespace: the pod's namespace, also the ReplicaSet's namespace.
+//   - namespace: the pod's namespace.
 //   - ownerRefs: the pod's OwnerReferences.
 //
-// Returns: the highest-level owner's (kind, name) — e.g.
-// ("Deployment", "web"), ("ReplicaSet", "web-7d9f8c6b5d") if that
-// ReplicaSet has no further owner or the lookup failed, ("StatefulSet",
-// "web") for a directly-owned pod, or ("", "") for an unowned pod.
+// Returns: the highest-level owner's (kind, name), or ("", "") for an unowned pod.
 func (c *ownerCache) resolve(ctx context.Context, namespace string, ownerRefs []metav1.OwnerReference) (kind, name string) {
 	ref := controllerRef(ownerRefs)
 	if ref == nil {
@@ -60,17 +50,13 @@ func (c *ownerCache) resolve(ctx context.Context, namespace string, ownerRefs []
 	return c.resolveReplicaSetOwner(ctx, namespace, ref.Name)
 }
 
-// Purpose: resolves one ReplicaSet's own controlling owner (its
-// Deployment, if any), memoizing the result for the rest of the poll
-// cycle.
+// Purpose: resolves a ReplicaSet's owning Deployment, memoizing the result for the poll cycle.
 // Params:
 //   - ctx: used for the Get call on a cache miss.
 //   - namespace: the ReplicaSet's namespace.
 //   - name: the ReplicaSet's name.
 //
-// Returns: ("Deployment", name) if found, or ("ReplicaSet",
-// replicaSetName) if the ReplicaSet has no controller owner or the
-// lookup failed (logged at Debug).
+// Returns: the owner's (kind, name), or ("ReplicaSet", name) if it has none or the lookup failed.
 func (c *ownerCache) resolveReplicaSetOwner(ctx context.Context, namespace, name string) (string, string) {
 	key := namespace + "/" + name
 	if owner, ok := c.replicaSetOwners[key]; ok {
@@ -97,13 +83,11 @@ func (c *ownerCache) resolveReplicaSetOwner(ctx context.Context, namespace, name
 	return owner.Kind, owner.Name
 }
 
-// Purpose: returns the OwnerReference marked as the controller, if
-// any — a Kubernetes object has at most one.
+// Purpose: returns the OwnerReference marked as the controller, if any.
 // Params:
 //   - refs: the object's OwnerReferences.
 //
-// Returns: a pointer into refs for the controller reference, or nil
-// if none is marked as the controller.
+// Returns: a pointer into refs for the controller reference, or nil if none.
 func controllerRef(refs []metav1.OwnerReference) *metav1.OwnerReference {
 	for i := range refs {
 		if refs[i].Controller != nil && *refs[i].Controller {
