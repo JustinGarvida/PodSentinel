@@ -10,3 +10,17 @@ export function formatMemory(bytes: number): string {
   if (mib >= 1024) return `${(mib / 1024).toFixed(2)}Gi`
   return `${mib.toFixed(1)}Mi`
 }
+
+/** Formats a pod's controlling owner as `Kind/name`, or an em dash for a bare pod. */
+export function formatOwner(kind: string, name: string): string {
+  if (!name) return '—'
+  return `${kind}/${name}`
+}
+
+/** Formats an ISO timestamp in the viewer's locale, with seconds. */
+export function formatTimestamp(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'medium',
+  })
+}
